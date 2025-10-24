@@ -1,0 +1,42 @@
+# docker/Dockerfile
+FROM python:3.12-slim
+
+# OS deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libaio1 unzip gcc build-essential git \
+  && rm -rf /var/lib/apt/lists/*
+
+# ---- Oracle Instant Client (bundle zips in build context) ----
+# Put your zips under docker/oracle/*.zip before building.
+ARG OCI_DIR=/opt/oracle
+ARG OCI_HOME=${OCI_DIR}/instantclient
+COPY oracle/*.zip /tmp/
+
+RUN mkdir -p ${OCI_DIR} \
+  && cd ${OCI_DIR} \
+  && unzip /tmp/instantclient-basic*.zip \
+  && ln -s ${OCI_DIR}/instantclient_* ${OCI_HOME} \
+  && echo "${OCI_HOME}" > /etc/ld.so.conf.d/oracle-instantclient.conf \
+  && ldconfig \
+  && rm -f /tmp/*.zip
+
+# Runtime linking for Oracle client
+ENV LD_LIBRARY_PATH=${OCI_HOME}:${LD_LIBRARY_PATH}
+ENV ORACLE_HOME=${OCI_HOME}
+ENV TNS_ADMIN=/app/tns  # if you use tnsnames.ora (optional)
+
+# ---- Python: dbt core + dbt-oracle ----
+# Pin matching minors for stability (dbt-oracle 1.9.x pairs with dbt-core 1.9.x).
+RUN python -m pip install --upgrade pip setuptools wheel \
+  && pip install "dbt-core==1.9.*" "dbt-oracle==1.9.*"
+
+# Non-root user (better file perms in mounted volumes)
+RUN useradd -ms /bin/bash dbtuser
+USER dbtuser
+WORKDIR /app
+
+# dbt looks here for profiles by default; we’ll mount one via compose
+ENV DBT_PROFILES_DIR=/home/dbtuser/.dbt
+
+# Default command shows dbt version; override in compose
+CMD ["dbt", "--version"]
