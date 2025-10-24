@@ -1,0 +1,23 @@
+version: "3.9"
+services:
+  dbt:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    container_name: dbt-oracle-dev
+    # Mount your dbt project and a local profiles dir
+    volumes:
+      - ./dbt_project:/app   # your dbt repo root
+      - ./profiles:/home/dbtuser/.dbt
+      - ./tns:/app/tns        # optional if you use tnsnames.ora
+    environment:
+      # env-vars you reference in profiles.yml
+      ORACLE_USER: dev_user
+      ORACLE_PASSWORD: dev_password
+      ORACLE_HOST: your-hostname
+      ORACLE_PORT: "1521"
+      ORACLE_SERVICE: your_service_name   # or ORACLE_SID if you use SID
+      # Optional: set threads/log-level, etc.
+      DBT_LOG_FORMAT: json
+    tty: true
+    stdin_open: true
